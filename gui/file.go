@@ -34,10 +34,3 @@ func (p *ProcessFileView) UpdateViewWithPid(g *Gui, pid PID) {
 		p.ScrollToBeginning()
 	})
 }
-
-func (p *ProcessFileView) UpdateView(g *Gui) {
-	proc := g.ProcessManager.Selected()
-	if proc != nil {
-		p.UpdateViewWithPid(g, proc.Pid)
-	}
-}

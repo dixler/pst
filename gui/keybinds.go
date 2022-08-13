@@ -25,7 +25,7 @@ func (g *Gui) prePanel() {
 	g.SwitchPanel(g.Panels.Panels[g.Panels.Current])
 }
 
-func (g *Gui) GrobalKeybind(event *tcell.EventKey) {
+func (g *Gui) GlobalKeybind(event *tcell.EventKey) {
 	switch event.Key() {
 	case tcell.KeyTab:
 		g.nextPanel()
@@ -48,12 +48,12 @@ func (g *Gui) ProcessManagerKeybinds() {
 			if g.ProcessManager.Selected() != nil {
 				g.Confirm("Do you want to kill this process?", "kill", g.ProcessManager, func() {
 					g.ProcessManager.Kill()
-					g.ProcessManager.UpdateView()
+					//g.ProcessManager.UpdateView()
 				})
 			}
 		}
 
-		g.GrobalKeybind(event)
+		g.GlobalKeybind(event)
 		return event
 	})
 
@@ -61,10 +61,13 @@ func (g *Gui) ProcessManagerKeybinds() {
 		if row < 1 {
 			return
 		}
-		g.ProcessInfoView.UpdateInfo(g)
-		g.ProcessTreeView.UpdateTree(g)
-		g.ProcessEnvView.UpdateView(g)
-		g.ProcessFileView.UpdateView(g)
+
+		proc := g.ProcessManager.Selected()
+
+		go g.ProcessInfoView.UpdateInfoWithPid(g, proc.Pid)
+		go g.ProcessTreeView.UpdateTree(g, proc.Pid)
+		go g.ProcessEnvView.UpdateViewWithPid(g, proc.Pid)
+		go g.ProcessFileView.UpdateViewWithPid(g, proc.Pid)
 	})
 }
 
@@ -77,13 +80,13 @@ func (g *Gui) FilterInputKeybinds() {
 			g.nextPanel()
 		}
 	}).SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		g.GrobalKeybind(event)
+		g.GlobalKeybind(event)
 		return event
 	})
 
 	g.FilterInput.SetChangedFunc(func(text string) {
 		g.ProcessManager.FilterWord = text
-		g.ProcessManager.UpdateView()
+		//g.ProcessManager.UpdateView()
 	})
 }
 
@@ -101,7 +104,8 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 					g.ProcessManager.KillWithPid(ref.(PID))
 					// wait a little to finish process killing
 					time.Sleep(1 * time.Millisecond)
-					g.ProcessTreeView.UpdateTree(g)
+					proc := g.ProcessManager.Selected()
+					g.ProcessTreeView.UpdateTree(g, proc.Pid)
 				})
 			}
 		case 'l':
@@ -109,9 +113,41 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 		case 'h':
 			g.ProcessTreeView.ExpandToggle(g.ProcessManager, node, false)
 		}
-		g.GrobalKeybind(event)
+		g.GlobalKeybind(event)
 		return event
 	})
+
+	pidRenderRequest := make(chan PID, 50)
+
+	redraw := func(pid PID) {
+		g.ProcessInfoView.UpdateInfoWithPid(g, pid)
+		g.ProcessEnvView.UpdateViewWithPid(g, pid)
+		g.ProcessFileView.UpdateViewWithPid(g, pid)
+	}
+
+	go func() {
+		duration := 300 * time.Millisecond
+		t := time.NewTicker(duration)
+		var curPid *PID = nil
+		var newPid *PID = nil
+		for {
+			select {
+			case <-t.C:
+				if newPid == nil {
+					continue
+				}
+				if newPid == curPid {
+					continue
+				}
+				curPid = newPid
+				redraw(*newPid)
+				t.Reset(duration)
+			case pid := <-pidRenderRequest:
+				newPid = &pid
+				t.Reset(duration)
+			}
+		}
+	}()
 
 	g.ProcessTreeView.SetChangedFunc(func(node *tview.TreeNode) {
 		if node == nil {
@@ -121,31 +157,29 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 		if ref == nil {
 			return
 		}
-
 		pid := ref.(PID)
-		g.ProcessInfoView.UpdateInfoWithPid(g, pid)
-		g.ProcessEnvView.UpdateViewWithPid(g, pid)
-		g.ProcessFileView.UpdateViewWithPid(g, pid)
+
+		pidRenderRequest <- pid
 	})
 }
 
 func (g *Gui) ProcessEnvViewKeybinds() {
 	g.ProcessEnvView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		g.GrobalKeybind(event)
+		g.GlobalKeybind(event)
 		return event
 	})
 }
 
 func (g *Gui) ProcessInfoViewKeybinds() {
 	g.ProcessInfoView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		g.GrobalKeybind(event)
+		g.GlobalKeybind(event)
 		return event
 	})
 }
 
 func (g *Gui) ProcessFileViewKeybinds() {
 	g.ProcessFileView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		g.GrobalKeybind(event)
+		g.GlobalKeybind(event)
 		return event
 	})
 }

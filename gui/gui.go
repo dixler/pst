@@ -107,15 +107,17 @@ func (g *Gui) Modal(p tview.Primitive, width, height int) tview.Primitive {
 }
 
 func (g *Gui) SwitchPanel(p tview.Primitive) *tview.Application {
-	g.UpdateViews()
+	//g.UpdateViews()
 	return g.App.SetFocus(p)
 }
 
 func (g *Gui) UpdateViews() {
-	g.ProcessInfoView.UpdateInfo(g)
-	g.ProcessTreeView.UpdateTree(g)
-	g.ProcessEnvView.UpdateView(g)
-	g.ProcessFileView.UpdateView(g)
+	proc := g.ProcessManager.Selected()
+
+	g.ProcessInfoView.UpdateInfoWithPid(g, proc.Pid)
+	g.ProcessTreeView.UpdateTree(g, proc.Pid)
+	g.ProcessEnvView.UpdateViewWithPid(g, proc.Pid)
+	g.ProcessFileView.UpdateViewWithPid(g, proc.Pid)
 	g.NaviView.UpdateView(g)
 }
 

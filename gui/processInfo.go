@@ -20,13 +20,6 @@ func NewProcessInfoView() *ProcessInfoView {
 	return p
 }
 
-func (p *ProcessInfoView) UpdateInfo(g *Gui) {
-	proc := g.ProcessManager.Selected()
-	if proc != nil {
-		p.UpdateInfoWithPid(g, proc.Pid)
-	}
-}
-
 func (p *ProcessInfoView) UpdateInfoWithPid(g *Gui, pid PID) {
 	text := ""
 	if pid != "0" {

@@ -2,11 +2,9 @@ package gui
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
-	"sync"
 )
 
 type PID string
@@ -78,9 +76,6 @@ func NewSource[T any](program string,
 	dataCh := make(chan T, 500)
 	done := make(chan bool, 1)
 
-	lock := sync.RWMutex{}
-	cache := make(map[PID]T)
-
 	go func() {
 		err = cmd.Run()
 		if err != nil {
@@ -111,9 +106,6 @@ func NewSource[T any](program string,
 					return
 				}
 
-				lock.Lock()
-				cache[pid] = d
-				lock.Unlock()
 				pidCh <- pid
 				dataCh <- d
 			}(str)
@@ -121,18 +113,6 @@ func NewSource[T any](program string,
 	}()
 
 	return Datasource[T]{
-		Get: func(pid PID) (T, error) {
-			lock.RLock()
-			t, ok := cache[pid]
-			lock.RUnlock()
-			if !ok && len(get) > 0 {
-				return get[0](pid)
-			}
-			if !ok {
-				return t, fmt.Errorf("PID[%s] does not exist", pid)
-			}
-			return t, err
-		},
 		GetStream: func() (chan PID, chan T, error) {
 			return pidCh, dataCh, err
 		},

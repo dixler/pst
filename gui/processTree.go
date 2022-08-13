@@ -35,21 +35,15 @@ func (p *ProcessTreeView) ExpandToggle(pm *ProcessManager, node *tview.TreeNode,
 	}
 }
 
-func (p *ProcessTreeView) UpdateTree(g *Gui) {
-	proc := g.ProcessManager.Selected()
-	if proc == nil {
-		return
-	}
+func (p *ProcessTreeView) UpdateTree(g *Gui, pid PID) {
 
-	pid := string(proc.Pid)
-
-	root := tview.NewTreeNode(pid).
+	root := tview.NewTreeNode(pid.String()).
 		SetColor(tcell.ColorYellow)
 
 	p.SetRoot(root).
 		SetCurrentNode(root)
 
-	p.addNode(g.ProcessManager, root, proc.Pid)
+	p.addNode(g.ProcessManager, root, pid)
 }
 
 func (p *ProcessTreeView) addNode(pm *ProcessManager, target *tview.TreeNode, pid PID) {
@@ -64,7 +58,7 @@ func (p *ProcessTreeView) addNode(pm *ProcessManager, target *tview.TreeNode, pi
 	}
 
 	for _, p := range proc.Child {
-		node := tview.NewTreeNode(fmt.Sprintf("PID: %d CMD: %s", p, pm.procDs.GetCommand(p))).
+		node := tview.NewTreeNode(fmt.Sprintf("PID: %s CMD: %s", p, pm.procDs.GetCommand(p))).
 			SetReference(p)
 
 		p, ok := processes[p]

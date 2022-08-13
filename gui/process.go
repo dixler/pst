@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Process struct {
@@ -17,7 +18,8 @@ type Process struct {
 }
 
 type ProcDataSource interface {
-	GetAllProcesses() []PID
+	GetProcesses(filters ...string) []Process
+	GetProcess(pid PID) Process
 
 	// procfs based
 	GetChildren(pid PID) []PID
@@ -35,8 +37,9 @@ type procDataSource struct {
 	openDs  Datasource[OpenData]
 	chdirDs Datasource[ChdirData]
 
-	openLog   map[PID][]OpenData
-	procCache map[PID]ExecData
+	openLog       map[PID][]OpenData
+	procCacheLock *sync.RWMutex
+	procCache     map[PID]ExecData
 }
 
 func NewProcDataSource() (procDataSource, error) {
@@ -71,36 +74,84 @@ func NewProcDataSource() (procDataSource, error) {
 		}
 	}()
 
-	return procDataSource{
-		execDs:  execDs,
-		openDs:  openDs,
-		openLog: opens,
-		chdirDs: chdirDs,
-	}, err
-}
-
-func (pds *procDataSource) GetAllProcesses() []PID {
-	if len(pds.procCache) > 0 {
-		pids := make([]PID, 0, len(pds.procCache))
-		for pid := range pds.procCache {
-			pids = append(pids, pid)
-		}
-		return pids
+	pds := procDataSource{
+		execDs:        execDs,
+		openDs:        openDs,
+		openLog:       opens,
+		chdirDs:       chdirDs,
+		procCache:     make(map[PID]ExecData),
+		procCacheLock: &sync.RWMutex{},
 	}
 
+	pds.bootstrapProcCache()
+
+	return pds, nil
+}
+
+func (pds *procDataSource) GetProcess(pid PID) *Process {
+	p, ok := pds.procCache[pid]
+	if !ok {
+		p = ExecData{
+			Command: pds.GetCommand(pid),
+		}
+		pds.procCacheLock.Lock()
+		pds.procCache[pid] = p
+		pds.procCacheLock.Unlock()
+	}
+	return &Process{
+		Pid:   pid,
+		Cmd:   p.Command,
+		Child: pds.GetChildren(pid),
+	}
+}
+
+func (pds *procDataSource) bootstrapProcCache() {
 	files, err := filepath.Glob("/proc/*")
 	if err != nil {
 		panic("glob panicked")
 	}
-	pids := make([]PID, 0, 500)
 	for _, f := range files {
 		candidate := path.Base(f)
 		if _, err := strconv.Atoi(candidate); err != nil {
 			continue
 		}
-		pids = append(pids, PID(candidate))
+		pid := PID(candidate)
+		pds.procCacheLock.Lock()
+		pds.procCache[pid] = ExecData{
+			Command: pds.GetCommand(pid),
+		}
+		pds.procCacheLock.Unlock()
 	}
-	return pids
+
+	execDsPID, execDsData, err := pds.execDs.GetStream()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	go func() {
+		for pid := range execDsPID {
+			e := <-execDsData
+
+			pds.procCacheLock.Lock()
+			pds.procCache[pid] = e
+			pds.procCacheLock.Unlock()
+		}
+	}()
+}
+
+func (pds *procDataSource) GetProcesses(filters ...string) map[PID]Process {
+	results := make(map[PID]Process)
+	for pid, proc := range pds.procCache {
+		if !strings.Contains(proc.Command, filters[0]) {
+			continue
+		}
+		results[pid] = Process{
+			Pid:   pid,
+			Cmd:   proc.Command,
+			Child: pds.GetChildren(pid),
+		}
+	}
+	return results
 }
 
 func (pds *procDataSource) GetChildren(pid PID) []PID {
@@ -145,8 +196,8 @@ func readProcPath(pid PID, p string) (string, error) {
 }
 
 func (pds *procDataSource) GetCommand(pid PID) string {
-	str, _ := readProcPath(pid, "cmdline")
-	return strings.ReplaceAll(str, "\x00", " ")
+	str, _ := readProcPath(pid, "comm")
+	return str //strings.ReplaceAll(str, "\x00", " ")
 }
 
 func (pds *procDataSource) GetEnviron(pid PID) []string {

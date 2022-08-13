@@ -19,7 +19,7 @@ var psArgs = GetEnv("PS_ARGS", "pid,ppid,%cpu,%mem,lstart,user,command")
 
 type ProcessManager struct {
 	*tview.Table
-	processes  []Process
+	pids       *[]PID
 	FilterWord string
 	procDs     procDataSource
 }
@@ -31,6 +31,7 @@ func NewProcessManager() *ProcessManager {
 	}
 
 	p := &ProcessManager{
+		pids:   nil,
 		Table:  tview.NewTable().Select(0, 0).SetFixed(1, 1).SetSelectable(true, false),
 		procDs: procDs,
 	}
@@ -39,33 +40,14 @@ func NewProcessManager() *ProcessManager {
 }
 
 func (p *ProcessManager) GetProcesses() (map[PID]Process, error) {
-	pids := p.procDs.GetAllProcesses()
-
-	procs := make(map[PID]Process)
-	for _, pid := range pids {
-		// skip pid 0
-		if pid == "0" {
-			continue
-		}
-
-		procs[pid] = Process{
-			Pid:   pid,
-			Cmd:   p.procDs.GetCommand(pid),
-			Child: p.procDs.GetChildren(pid),
-		}
-	}
+	procs := p.procDs.GetProcesses(p.FilterWord)
 
 	for _, proc := range procs {
-		if strings.Contains(proc.Cmd, p.FilterWord) {
+		// skip pid 0
+		if proc.Pid == "0" {
 			continue
 		}
-
-		p.processes = append(p.processes, proc)
 	}
-
-	sort.Slice(p.processes, func(i, j int) bool {
-		return p.processes[i].Pid < p.processes[j].Pid
-	})
 
 	return procs, nil
 }
@@ -78,7 +60,8 @@ var headers = []string{
 
 func (p *ProcessManager) UpdateView() error {
 	// get processes
-	if _, err := p.GetProcesses(); err != nil {
+	procs, err := p.GetProcesses()
+	if err != nil {
 		return err
 	}
 
@@ -97,7 +80,22 @@ func (p *ProcessManager) UpdateView() error {
 
 	// set process info to cell
 	var i int
-	for _, proc := range p.processes {
+	pids := make([]PID, 0, len(procs))
+	for pid := range procs {
+		pids = append(pids, pid)
+	}
+
+	sort.Slice(pids, func(i, j int) bool {
+		a, b := pids[i], pids[j]
+
+		if len(a) == len(b) {
+			return a < b
+		}
+		return len(a) < len(b)
+	})
+
+	for _, pid := range pids {
+		proc := procs[pid]
 		pid := string(proc.Pid)
 		ppid := string(proc.PPid)
 		table.SetCell(i+1, 0, tview.NewTableCell(pid))
@@ -106,21 +104,24 @@ func (p *ProcessManager) UpdateView() error {
 		i++
 	}
 
+	p.pids = &pids
+
 	return nil
 }
 
 func (p *ProcessManager) Selected() *Process {
-	if len(p.processes) == 0 {
+	if p.pids == nil {
 		return nil
 	}
 	row, _ := p.GetSelection()
 	if row < 0 {
 		return nil
 	}
-	if len(p.processes) < row {
+	if len(*p.pids) < row {
 		return nil
 	}
-	return &p.processes[row-1]
+	focusedPid := (*p.pids)[row-1]
+	return p.procDs.GetProcess(focusedPid)
 }
 
 func (p *ProcessManager) Kill() error {
@@ -153,24 +154,21 @@ func (p *ProcessManager) KillWithPid(pid PID) error {
 }
 
 func (p *ProcessManager) Info(pid PID) (string, error) {
-	// TODO implements windows
-	if runtime.GOOS == "windows" {
-		return "", nil
-	}
-
 	if pid == "0" {
 		return "", nil
 	}
 
-	buf := bytes.Buffer{}
 	cmd := exec.Command("ps", "-o", psArgs, "-p", pid.String())
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-	if err := cmd.Run(); err != nil {
-		return "", errors.New(buf.String())
+	buf, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
 	}
 
-	return buf.String(), nil
+	if err := cmd.Run(); err != nil {
+		return "", errors.New(string(buf))
+	}
+
+	return string(buf), nil
 }
 
 func (p *ProcessManager) Env(pid PID) (string, error) {
@@ -183,30 +181,19 @@ func (p *ProcessManager) Env(pid PID) (string, error) {
 		return "", nil
 	}
 
-	buf := bytes.Buffer{}
-	cmd := exec.Command("ps", "eww", "-o", "command", "-p", pid.String())
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-
-	if err := cmd.Run(); err != nil {
+	env, err := readProcPath(pid, "environ")
+	if err != nil {
 		return "", err
 	}
 
-	result := strings.Split(buf.String(), "\n")
+	result := strings.Split(env, "\x00")
 
 	var (
-		envStr []string
-		envs   []string
+		envs []string
 	)
 
-	if len(result) > 1 {
-		envStr = strings.Split(result[1], " ")[1:]
-	} else {
-		return buf.String(), nil
-	}
-
-	for _, e := range envStr {
-		kv := strings.Split(e, "=")
+	for _, e := range result {
+		kv := strings.SplitN(e, "=", 1)
 		if len(kv) != 2 {
 			continue
 		}

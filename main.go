@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 
 	"github.com/dixler/pst/gui"
 )
@@ -46,5 +48,15 @@ func run() int {
 }
 
 func main() {
-	os.Exit(run())
+	// TODO implements windows
+	if runtime.GOOS == "windows" {
+		panic("no windows")
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			ioutil.WriteFile("crashdump.txt", []byte(debug.Stack()), 0666)
+		}
+	}()
+	run()
 }

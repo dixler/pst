@@ -84,7 +84,7 @@ func NewSource[T any](program string,
 	go func() {
 		err = cmd.Run()
 		if err != nil {
-			fmt.Printf("%v\n", err)
+			//fmt.Printf("%v\n", err)
 		}
 		<-done
 		close(done)
@@ -96,7 +96,7 @@ func NewSource[T any](program string,
 		for {
 			str, err := rd.ReadString('\n')
 			if err != nil {
-				fmt.Println("Read Error:", err)
+				//fmt.Println("Read Error:", err)
 				done <- true
 				return
 			}

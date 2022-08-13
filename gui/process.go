@@ -1,8 +1,8 @@
 package gui
 
 type Process struct {
-	Pid   int
-	PPid  int
+	Pid   PID
+	PPid  PID
 	Cmd   string
-	Child []Process
+	Child []PID
 }

@@ -9,11 +9,9 @@ import (
 	"os/exec"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/gdamore/tcell"
-	ps "github.com/mitchellh/go-ps"
 	"github.com/rivo/tview"
 )
 
@@ -23,51 +21,42 @@ type ProcessManager struct {
 	*tview.Table
 	processes  []Process
 	FilterWord string
+	procDs     procDataSource
 }
 
 func NewProcessManager() *ProcessManager {
+	procDs, err := NewProcDataSource()
+	if err != nil {
+		panic("")
+	}
+
 	p := &ProcessManager{
-		Table: tview.NewTable().Select(0, 0).SetFixed(1, 1).SetSelectable(true, false),
+		Table:  tview.NewTable().Select(0, 0).SetFixed(1, 1).SetSelectable(true, false),
+		procDs: procDs,
 	}
 	p.SetBorder(true).SetTitle("processes").SetTitleAlign(tview.AlignLeft)
 	return p
 }
 
-func (p *ProcessManager) GetProcesses() (map[int]Process, error) {
-	processes, err := ps.Processes()
-	if err != nil {
-		log.Println("cannot get processes: " + err.Error())
-		return nil, err
-	}
+func (p *ProcessManager) GetProcesses() (map[PID]Process, error) {
+	pids := p.procDs.GetAllProcesses()
 
-	pids := make(map[int]Process)
-	for _, proc := range processes {
+	procs := make(map[PID]Process)
+	for _, pid := range pids {
 		// skip pid 0
-		if proc.Pid() == 0 {
-			continue
-		}
-		pids[proc.Pid()] = Process{
-			Pid:  proc.Pid(),
-			PPid: proc.PPid(),
-			Cmd:  proc.Executable(),
-		}
-	}
-
-	// add child processes
-	for _, p := range processes {
-		if p.Pid() == p.PPid() {
+		if pid == "0" {
 			continue
 		}
 
-		if proc, ok := pids[p.PPid()]; ok {
-			proc.Child = append(proc.Child, pids[p.Pid()])
-			pids[p.PPid()] = proc
+		procs[pid] = Process{
+			Pid:   pid,
+			Cmd:   p.procDs.GetCommand(pid),
+			Child: p.procDs.GetChildren(pid),
 		}
 	}
 
-	p.processes = []Process{}
-	for _, proc := range pids {
-		if strings.Index(proc.Cmd, p.FilterWord) == -1 {
+	for _, proc := range procs {
+		if strings.Contains(proc.Cmd, p.FilterWord) {
 			continue
 		}
 
@@ -78,7 +67,7 @@ func (p *ProcessManager) GetProcesses() (map[int]Process, error) {
 		return p.processes[i].Pid < p.processes[j].Pid
 	})
 
-	return pids, nil
+	return procs, nil
 }
 
 var headers = []string{
@@ -109,8 +98,8 @@ func (p *ProcessManager) UpdateView() error {
 	// set process info to cell
 	var i int
 	for _, proc := range p.processes {
-		pid := strconv.Itoa(proc.Pid)
-		ppid := strconv.Itoa(proc.PPid)
+		pid := string(proc.Pid)
+		ppid := string(proc.PPid)
 		table.SetCell(i+1, 0, tview.NewTableCell(pid))
 		table.SetCell(i+1, 1, tview.NewTableCell(ppid))
 		table.SetCell(i+1, 2, tview.NewTableCell(proc.Cmd))
@@ -136,7 +125,7 @@ func (p *ProcessManager) Selected() *Process {
 
 func (p *ProcessManager) Kill() error {
 	pid := p.Selected().Pid
-	proc, err := os.FindProcess(pid)
+	proc, err := os.FindProcess(pid.Int())
 	if err != nil {
 		log.Println(err)
 		return err
@@ -149,8 +138,8 @@ func (p *ProcessManager) Kill() error {
 	return nil
 }
 
-func (p *ProcessManager) KillWithPid(pid int) error {
-	proc, err := os.FindProcess(pid)
+func (p *ProcessManager) KillWithPid(pid PID) error {
+	proc, err := os.FindProcess(pid.Int())
 	if err != nil {
 		log.Println(err)
 		return err
@@ -163,18 +152,18 @@ func (p *ProcessManager) KillWithPid(pid int) error {
 	return nil
 }
 
-func (p *ProcessManager) Info(pid int) (string, error) {
+func (p *ProcessManager) Info(pid PID) (string, error) {
 	// TODO implements windows
 	if runtime.GOOS == "windows" {
 		return "", nil
 	}
 
-	if pid == 0 {
+	if pid == "0" {
 		return "", nil
 	}
 
 	buf := bytes.Buffer{}
-	cmd := exec.Command("ps", "-o", psArgs, "-p", strconv.Itoa(pid))
+	cmd := exec.Command("ps", "-o", psArgs, "-p", pid.String())
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
@@ -184,18 +173,18 @@ func (p *ProcessManager) Info(pid int) (string, error) {
 	return buf.String(), nil
 }
 
-func (p *ProcessManager) Env(pid int) (string, error) {
+func (p *ProcessManager) Env(pid PID) (string, error) {
 	// TODO implements windows
 	if runtime.GOOS == "windows" {
 		return "", nil
 	}
 
-	if pid == 0 {
+	if pid == "0" {
 		return "", nil
 	}
 
 	buf := bytes.Buffer{}
-	cmd := exec.Command("ps", "eww", "-o", "command", "-p", strconv.Itoa(pid))
+	cmd := exec.Command("ps", "eww", "-o", "command", "-p", pid.String())
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 
@@ -227,18 +216,18 @@ func (p *ProcessManager) Env(pid int) (string, error) {
 	return strings.Join(envs, "\n"), nil
 }
 
-func (p *ProcessManager) OpenFiles(pid int) (string, error) {
+func (p *ProcessManager) OpenFiles(pid PID) (string, error) {
 	// TODO implements windows
 	if runtime.GOOS == "windows" {
 		return "", nil
 	}
 
-	if pid == 0 {
+	if pid == "0" {
 		return "", nil
 	}
 
 	buf := bytes.Buffer{}
-	cmd := exec.Command("lsof", "-p", strconv.Itoa(pid))
+	cmd := exec.Command("lsof", "-p", pid.String())
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 

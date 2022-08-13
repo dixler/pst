@@ -18,9 +18,9 @@ func NewProcessFileView() *ProcessFileView {
 	return p
 }
 
-func (p *ProcessFileView) UpdateViewWithPid(g *Gui, pid int) {
+func (p *ProcessFileView) UpdateViewWithPid(g *Gui, pid PID) {
 	text := ""
-	if pid != 0 {
+	if pid != "0" {
 		info, err := g.ProcessManager.OpenFiles(pid)
 		if err != nil {
 			text = err.Error()

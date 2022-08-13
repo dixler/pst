@@ -98,7 +98,7 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 		case 'K':
 			if ref := node.GetReference(); ref != nil {
 				g.Confirm("Do you want to kill this process?", "kill", g.ProcessTreeView, func() {
-					g.ProcessManager.KillWithPid(ref.(int))
+					g.ProcessManager.KillWithPid(ref.(PID))
 					// wait a little to finish process killing
 					time.Sleep(1 * time.Millisecond)
 					g.ProcessTreeView.UpdateTree(g)
@@ -122,7 +122,7 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 			return
 		}
 
-		pid := ref.(int)
+		pid := ref.(PID)
 		g.ProcessInfoView.UpdateInfoWithPid(g, pid)
 		g.ProcessEnvView.UpdateViewWithPid(g, pid)
 		g.ProcessFileView.UpdateViewWithPid(g, pid)

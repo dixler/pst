@@ -8,8 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mitchellh/go-homedir"
-	"github.com/skanehira/pst/gui"
+	"github.com/dixler/pst/gui"
 )
 
 var (
@@ -21,7 +20,7 @@ func run() int {
 	flag.Parse()
 
 	if *enableLog {
-		home, err := homedir.Dir()
+		home, err := os.UserHomeDir()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1

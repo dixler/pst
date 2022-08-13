@@ -27,9 +27,9 @@ func (p *ProcessInfoView) UpdateInfo(g *Gui) {
 	}
 }
 
-func (p *ProcessInfoView) UpdateInfoWithPid(g *Gui, pid int) {
+func (p *ProcessInfoView) UpdateInfoWithPid(g *Gui, pid PID) {
 	text := ""
-	if pid != 0 {
+	if pid != "0" {
 		info, err := g.ProcessManager.Info(pid)
 		if err != nil {
 			text = err.Error()

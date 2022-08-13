@@ -2,6 +2,7 @@ package gui
 
 import (
 	"log"
+	"time"
 
 	"github.com/rivo/tview"
 )
@@ -25,6 +26,7 @@ type Gui struct {
 	NaviView        *NaviView
 	App             *tview.Application
 	Pages           *tview.Pages
+	updateChannel   chan PID
 	Panels
 }
 
@@ -44,6 +46,7 @@ func New(word string) *Gui {
 	processEnvView := NewProcessEnvView()
 	processFileView := NewProcessFileView()
 	naviView := NewNaviView()
+	updateChannel := make(chan PID, 50)
 
 	g := &Gui{
 		FilterInput:     filterInput,
@@ -54,7 +57,39 @@ func New(word string) *Gui {
 		ProcessEnvView:  processEnvView,
 		ProcessFileView: processFileView,
 		NaviView:        naviView,
+		updateChannel:   updateChannel,
 	}
+
+	redraw := func(pid PID) {
+		g.ProcessInfoView.UpdateInfoWithPid(g, pid)
+		g.ProcessTreeView.UpdateTree(g, pid)
+		g.ProcessEnvView.UpdateViewWithPid(g, pid)
+		g.ProcessFileView.UpdateViewWithPid(g, pid)
+		g.NaviView.UpdateView(g)
+	}
+
+	go func() {
+		duration := 250 * time.Millisecond
+		t := time.NewTicker(duration)
+		var curPid *PID = nil
+		var newPid *PID = nil
+		for {
+			select {
+			case <-t.C:
+				if newPid == nil {
+					continue
+				}
+				if newPid == curPid {
+					continue
+				}
+				curPid = newPid
+				redraw(*newPid)
+			case pid := <-g.updateChannel:
+				newPid = &pid
+				t.Reset(duration)
+			}
+		}
+	}()
 
 	g.Panels = Panels{
 		Panels: []tview.Primitive{
@@ -111,14 +146,9 @@ func (g *Gui) SwitchPanel(p tview.Primitive) *tview.Application {
 	return g.App.SetFocus(p)
 }
 
-func (g *Gui) UpdateViews() {
-	proc := g.ProcessManager.Selected()
+func (g *Gui) UpdateViews(pid PID) {
+	g.updateChannel <- pid
 
-	g.ProcessInfoView.UpdateInfoWithPid(g, proc.Pid)
-	g.ProcessTreeView.UpdateTree(g, proc.Pid)
-	g.ProcessEnvView.UpdateViewWithPid(g, proc.Pid)
-	g.ProcessFileView.UpdateViewWithPid(g, proc.Pid)
-	g.NaviView.UpdateView(g)
 }
 
 func (g *Gui) CurrentPanelKind() int {
@@ -132,7 +162,8 @@ func (g *Gui) Run() error {
 	}
 	// when start app, set select index 0
 	g.ProcessManager.Select(1, 0)
-	g.UpdateViews()
+	proc := g.ProcessManager.Selected()
+	g.UpdateViews(proc.Pid)
 
 	infoGrid := tview.NewGrid().SetRows(0, 0, 0, 0).
 		SetColumns(30, 0).

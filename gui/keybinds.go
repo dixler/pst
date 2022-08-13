@@ -64,10 +64,7 @@ func (g *Gui) ProcessManagerKeybinds() {
 
 		proc := g.ProcessManager.Selected()
 
-		go g.ProcessInfoView.UpdateInfoWithPid(g, proc.Pid)
-		go g.ProcessTreeView.UpdateTree(g, proc.Pid)
-		go g.ProcessEnvView.UpdateViewWithPid(g, proc.Pid)
-		go g.ProcessFileView.UpdateViewWithPid(g, proc.Pid)
+		g.UpdateViews(proc.Pid)
 	})
 }
 
@@ -117,38 +114,6 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 		return event
 	})
 
-	pidRenderRequest := make(chan PID, 50)
-
-	redraw := func(pid PID) {
-		g.ProcessInfoView.UpdateInfoWithPid(g, pid)
-		g.ProcessEnvView.UpdateViewWithPid(g, pid)
-		g.ProcessFileView.UpdateViewWithPid(g, pid)
-	}
-
-	go func() {
-		duration := 300 * time.Millisecond
-		t := time.NewTicker(duration)
-		var curPid *PID = nil
-		var newPid *PID = nil
-		for {
-			select {
-			case <-t.C:
-				if newPid == nil {
-					continue
-				}
-				if newPid == curPid {
-					continue
-				}
-				curPid = newPid
-				redraw(*newPid)
-				t.Reset(duration)
-			case pid := <-pidRenderRequest:
-				newPid = &pid
-				t.Reset(duration)
-			}
-		}
-	}()
-
 	g.ProcessTreeView.SetChangedFunc(func(node *tview.TreeNode) {
 		if node == nil {
 			return
@@ -159,7 +124,7 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 		}
 		pid := ref.(PID)
 
-		pidRenderRequest <- pid
+		g.UpdateViews(pid)
 	})
 }
 

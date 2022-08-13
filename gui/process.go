@@ -89,7 +89,9 @@ func NewProcDataSource() (procDataSource, error) {
 }
 
 func (pds *procDataSource) GetProcess(pid PID) *Process {
+	pds.procCacheLock.RLock()
 	p, ok := pds.procCache[pid]
+	pds.procCacheLock.RUnlock()
 	if !ok {
 		p = ExecData{
 			Command: pds.GetCommand(pid),
@@ -141,6 +143,8 @@ func (pds *procDataSource) bootstrapProcCache() {
 
 func (pds *procDataSource) GetProcesses(filters ...string) map[PID]Process {
 	results := make(map[PID]Process)
+	pds.procCacheLock.RLock()
+	defer pds.procCacheLock.RUnlock()
 	for pid, proc := range pds.procCache {
 		if !strings.Contains(proc.Command, filters[0]) {
 			continue

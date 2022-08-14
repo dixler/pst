@@ -90,7 +90,7 @@ func (g *Gui) FilterInputKeybinds() {
 
 func (g *Gui) ProcessTreeViewKeybinds() {
 	g.ProcessTreeView.SetSelectedFunc(func(node *tview.TreeNode) {
-		g.ProcessTreeView.ExpandToggle(g.ProcessManager, node, !node.IsExpanded())
+		g.ProcessTreeView.ExpandToggle(node, !node.IsExpanded())
 	})
 
 	g.ProcessTreeView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -107,9 +107,9 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 				})
 			}
 		case 'l':
-			g.ProcessTreeView.ExpandToggle(g.ProcessManager, node, true)
+			g.ProcessTreeView.ExpandToggle(node, true)
 		case 'h':
-			g.ProcessTreeView.ExpandToggle(g.ProcessManager, node, false)
+			g.ProcessTreeView.ExpandToggle(node, false)
 		}
 		g.GlobalKeybind(event)
 		return event

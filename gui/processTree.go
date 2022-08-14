@@ -10,18 +10,22 @@ import (
 
 type ProcessTreeView struct {
 	*tview.TreeView
+	getProcesses func() (map[proc.PID]proc.Process, error)
 }
 
-func NewProcessTreeView(pm *ProcessManager) *ProcessTreeView {
+func NewProcessTreeView(
+	getProcesses func() (map[proc.PID]proc.Process, error)) *ProcessTreeView {
+
 	p := &ProcessTreeView{
-		TreeView: tview.NewTreeView(),
+		TreeView:     tview.NewTreeView(),
+		getProcesses: getProcesses,
 	}
 
 	p.SetBorder(true).SetTitle("process tree").SetTitleAlign(tview.AlignLeft)
 	return p
 }
 
-func (p *ProcessTreeView) ExpandToggle(pm *ProcessManager, node *tview.TreeNode, isExpand bool) {
+func (p *ProcessTreeView) ExpandToggle(node *tview.TreeNode, isExpand bool) {
 	reference := node.GetReference()
 	if reference == nil {
 		return // Selecting the root node does nothing.
@@ -29,7 +33,7 @@ func (p *ProcessTreeView) ExpandToggle(pm *ProcessManager, node *tview.TreeNode,
 	children := node.GetChildren()
 	if len(children) == 0 {
 		pid := reference.(proc.PID)
-		p.addNode(pm, node, pid)
+		p.addNode(node, pid)
 	} else {
 		// Collapse if visible, expand if collapsed.
 		node.SetExpanded(isExpand)
@@ -44,11 +48,11 @@ func (p *ProcessTreeView) UpdateTree(g *Gui, pid proc.PID) {
 	p.SetRoot(root).
 		SetCurrentNode(root)
 
-	p.addNode(g.ProcessManager, root, pid)
+	p.addNode(root, pid)
 }
 
-func (p *ProcessTreeView) addNode(pm *ProcessManager, target *tview.TreeNode, pid proc.PID) {
-	processes, err := pm.GetProcesses()
+func (p *ProcessTreeView) addNode(target *tview.TreeNode, pid proc.PID) {
+	processes, err := p.getProcesses()
 	if err != nil {
 		return
 	}

@@ -103,7 +103,7 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 					// wait a little to finish process killing
 					time.Sleep(1 * time.Millisecond)
 					p := g.ProcessManager.Selected()
-					g.ProcessTreeView.UpdateTree(g, p.Pid)
+					g.ProcessTreeView.UpdateTree(p.Pid)
 				})
 			}
 		case 'l':
@@ -125,7 +125,8 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 		}
 		pid := ref.(proc.PID)
 
-		g.UpdateViews(pid)
+		_ = pid
+		//g.UpdateViews(pid)
 	})
 }
 

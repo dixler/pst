@@ -25,13 +25,11 @@ func NewEnvView() *EnvView {
 
 func (p *EnvView) UpdateViewWithPid(g *Gui, pid proc.PID) {
 	text := ""
-	if pid != "0" {
-		info, err := renderEnv(pid)
-		if err != nil {
-			text = err.Error()
-		} else {
-			text = info
-		}
+	info, err := renderEnv(pid)
+	if err != nil {
+		text = err.Error()
+	} else {
+		text = info
 	}
 
 	g.App.QueueUpdateDraw(func() {
@@ -43,10 +41,6 @@ func (p *EnvView) UpdateViewWithPid(g *Gui, pid proc.PID) {
 func renderEnv(pid proc.PID) (string, error) {
 	// TODO implements windows
 	if runtime.GOOS == "windows" {
-		return "", nil
-	}
-
-	if pid == "0" {
 		return "", nil
 	}
 

@@ -23,18 +23,16 @@ func NewProcessInfoView() *ProcessInfoView {
 
 func (p *ProcessInfoView) UpdateInfoWithPid(g *Gui, pid proc.PID) {
 	text := ""
-	if pid != "0" {
-		info, err := proc.Info(pid)
-		if err != nil {
-			text = err.Error()
+	info, err := proc.Info(pid)
+	if err != nil {
+		text = err.Error()
+	} else {
+		rows := strings.Split(info, "\n")
+		if len(rows) == 1 {
+			text = rows[0]
 		} else {
-			rows := strings.Split(info, "\n")
-			if len(rows) == 1 {
-				text = rows[0]
-			} else {
-				header := fmt.Sprintf("[yellow]%s[white]\n", rows[0])
-				text = header + rows[1]
-			}
+			header := fmt.Sprintf("[yellow]%s[white]\n", rows[0])
+			text = header + rows[1]
 		}
 	}
 

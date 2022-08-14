@@ -41,7 +41,7 @@ func New() *Gui {
 	filterInput := tview.NewInputField().SetLabel("cmd name:")
 	processManager := NewProcessManager()
 	processInfoView := NewProcessInfoView()
-	processTreeView := NewProcessTreeView(processManager.GetProcesses)
+	processTreeView := NewProcessTreeView(processManager.GetProcess)
 	processEnvView := NewEnvView()
 	processFileView := NewProcessFileView()
 	naviView := NewNaviView()
@@ -61,7 +61,7 @@ func New() *Gui {
 
 	redraw := func(pid proc.PID) {
 		g.ProcessInfoView.UpdateInfoWithPid(g, pid)
-		g.ProcessTreeView.UpdateTree(g, pid)
+		g.ProcessTreeView.UpdateTree(pid)
 		g.ProcessEnvView.UpdateViewWithPid(g, pid)
 		g.ProcessFileView.UpdateViewWithPid(g, pid)
 		g.NaviView.UpdateView(g)
@@ -71,20 +71,15 @@ func New() *Gui {
 		duration := 250 * time.Millisecond
 		t := time.NewTicker(duration)
 		var curPid *proc.PID = nil
-		var newPid *proc.PID = nil
 		for {
 			select {
 			case <-t.C:
-				if newPid == nil {
+				if curPid == nil {
 					continue
 				}
-				if newPid == curPid {
-					continue
-				}
-				curPid = newPid
-				redraw(*newPid)
+				redraw(*curPid)
 			case pid := <-g.updateChannel:
-				newPid = &pid
+				curPid = &pid
 				t.Reset(duration)
 			}
 		}
@@ -169,8 +164,10 @@ func (g *Gui) Run() error {
 		AddItem(g.ProcessManager, 0, 0, 4, 1, 0, 0, true).
 		AddItem(g.ProcessInfoView, 0, 1, 1, 1, 0, 0, true).
 		AddItem(g.ProcessFileView, 1, 1, 1, 1, 0, 0, true).
-		AddItem(g.ProcessEnvView, 2, 1, 1, 1, 0, 0, true).
-		AddItem(g.ProcessTreeView, 3, 1, 1, 1, 0, 0, true)
+		AddItem(tview.NewGrid().
+			AddItem(g.ProcessTreeView, 0, 0, 1, 1, 0, 0, true).
+			AddItem(g.ProcessEnvView, 0, 1, 1, 1, 0, 0, true),
+			2, 1, 1, 1, 0, 0, true)
 
 	grid := tview.NewGrid().SetRows(1, 0, 2).
 		SetColumns(30).

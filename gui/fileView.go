@@ -21,13 +21,11 @@ func NewProcessFileView() *ProcessFileView {
 
 func (p *ProcessFileView) UpdateViewWithPid(g *Gui, pid proc.PID) {
 	text := ""
-	if pid != "0" {
-		info, err := proc.OpenFiles(pid)
-		if err != nil {
-			text = err.Error()
-		} else {
-			text = info
-		}
+	info, err := proc.OpenFiles(pid)
+	if err != nil {
+		text = err.Error()
+	} else {
+		text = info
 	}
 
 	g.App.QueueUpdateDraw(func() {

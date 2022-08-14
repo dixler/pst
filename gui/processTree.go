@@ -8,17 +8,24 @@ import (
 	"github.com/rivo/tview"
 )
 
+type ProcessNode struct {
+	node     *tview.TreeNode
+	children []proc.PID
+}
+
 type ProcessTreeView struct {
 	*tview.TreeView
-	getProcesses func() (map[proc.PID]proc.Process, error)
+	getProcess func(proc.PID) *proc.Process
+	pidMap     map[proc.PID]*ProcessNode
 }
 
 func NewProcessTreeView(
-	getProcesses func() (map[proc.PID]proc.Process, error)) *ProcessTreeView {
+	getProcess func(proc.PID) *proc.Process) *ProcessTreeView {
 
 	p := &ProcessTreeView{
-		TreeView:     tview.NewTreeView(),
-		getProcesses: getProcesses,
+		TreeView:   tview.NewTreeView(),
+		getProcess: getProcess,
+		pidMap:     make(map[proc.PID]*ProcessNode),
 	}
 
 	p.SetBorder(true).SetTitle("process tree").SetTitleAlign(tview.AlignLeft)
@@ -40,37 +47,65 @@ func (p *ProcessTreeView) ExpandToggle(node *tview.TreeNode, isExpand bool) {
 	}
 }
 
-func (p *ProcessTreeView) UpdateTree(g *Gui, pid proc.PID) {
+func (p *ProcessTreeView) UpdateTree(pid proc.PID) {
+	ps := p.getProcess(pid)
+	if ps == nil {
+		return
+	}
+	curRoot := p.GetRoot()
+	if curRoot != nil {
+		rootPid := curRoot.GetReference().(proc.PID)
+		if rootPid == pid {
+			return
+		}
+	}
 
-	root := tview.NewTreeNode(pid.String()).
-		SetColor(tcell.ColorYellow)
-
-	p.SetRoot(root).
-		SetCurrentNode(root)
-
-	p.addNode(root, pid)
+	root, ok := p.pidMap[pid]
+	if ok {
+		p.SetRoot(root.node).
+			SetCurrentNode(root.node)
+		p.addNode(root.node, pid)
+		return
+	}
+	root = &ProcessNode{
+		children: ps.Child,
+		node: tview.
+			NewTreeNode(pid.String()).
+			SetReference(pid),
+	}
+	p.SetRoot(root.node).
+		SetCurrentNode(root.node)
+	p.addNode(root.node, pid)
+	p.pidMap[pid] = root
 }
 
 func (p *ProcessTreeView) addNode(target *tview.TreeNode, pid proc.PID) {
-	processes, err := p.getProcesses()
-	if err != nil {
-		return
-	}
-
-	pro, ok := processes[pid]
-	if !ok {
+	pro := p.getProcess(pid)
+	if pro == nil {
 		return
 	}
 
 	for _, child := range pro.Child {
-		node := tview.NewTreeNode(fmt.Sprintf("[%s] %s", child, proc.GetCommand(child))).
-			SetReference(child)
+		node, ok := p.pidMap[child]
+		if ok {
+			continue
 
-		childProcess, ok := processes[child]
-		node.SetSelectable(ok)
-		if len(childProcess.Child) > 0 {
-			node.SetColor(tcell.ColorGreen)
 		}
-		target.AddChild(node)
+		node = &ProcessNode{
+			node: tview.
+				NewTreeNode(fmt.Sprintf("[%s] %s", child, proc.GetCommand(child))).
+				SetReference(child),
+		}
+
+		childProcess := p.getProcess(child)
+		if childProcess == nil {
+			continue
+		}
+		node.node.SetSelectable(true)
+		if len(childProcess.Child) > 0 {
+			node.node.SetColor(tcell.ColorGreen)
+		}
+		target.AddChild(node.node)
+		p.pidMap[child] = node
 	}
 }

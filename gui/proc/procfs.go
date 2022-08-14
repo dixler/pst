@@ -12,10 +12,6 @@ import (
 )
 
 func Info(pid PID) (string, error) {
-	if pid == "0" {
-		return "", nil
-	}
-
 	cmd := exec.Command("ps", "-o", "pid,ppid,%cpu,%mem,lstart,user,command", "-p", pid.String())
 	buf, err := cmd.CombinedOutput()
 	if err != nil {
@@ -35,10 +31,6 @@ func GetEnv(pid PID) ([]string, error) {
 		return []string{}, nil
 	}
 
-	if pid == "0" {
-		return []string{}, nil
-	}
-
 	env, err := readProcPath(pid, "environ")
 	if err != nil {
 		return []string{}, nil
@@ -52,10 +44,6 @@ func GetEnv(pid PID) ([]string, error) {
 func OpenFiles(pid PID) (string, error) {
 	// TODO implements windows
 	if runtime.GOOS == "windows" {
-		return "", nil
-	}
-
-	if pid == "0" {
 		return "", nil
 	}
 

@@ -30,15 +30,15 @@ func NewProcessManager() *ProcessManager {
 	return p
 }
 
+func (p *ProcessManager) GetProcess(pid proc.PID) *proc.Process {
+	return p.procDs.GetProcess(pid)
+}
+
 func (p *ProcessManager) GetProcesses() (map[proc.PID]proc.Process, error) {
 	procs := p.procDs.GetProcesses(p.FilterWord)
 
 	procmap := make(map[proc.PID]proc.Process)
 	for _, p := range procs {
-		// skip pid 0
-		if p.Pid == "0" {
-			continue
-		}
 		procmap[p.Pid] = p
 	}
 

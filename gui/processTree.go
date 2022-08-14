@@ -3,6 +3,7 @@ package gui
 import (
 	"fmt"
 
+	"github.com/dixler/pst/gui/proc"
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 )
@@ -27,7 +28,7 @@ func (p *ProcessTreeView) ExpandToggle(pm *ProcessManager, node *tview.TreeNode,
 	}
 	children := node.GetChildren()
 	if len(children) == 0 {
-		pid := reference.(PID)
+		pid := reference.(proc.PID)
 		p.addNode(pm, node, pid)
 	} else {
 		// Collapse if visible, expand if collapsed.
@@ -35,7 +36,7 @@ func (p *ProcessTreeView) ExpandToggle(pm *ProcessManager, node *tview.TreeNode,
 	}
 }
 
-func (p *ProcessTreeView) UpdateTree(g *Gui, pid PID) {
+func (p *ProcessTreeView) UpdateTree(g *Gui, pid proc.PID) {
 
 	root := tview.NewTreeNode(pid.String()).
 		SetColor(tcell.ColorYellow)
@@ -46,24 +47,24 @@ func (p *ProcessTreeView) UpdateTree(g *Gui, pid PID) {
 	p.addNode(g.ProcessManager, root, pid)
 }
 
-func (p *ProcessTreeView) addNode(pm *ProcessManager, target *tview.TreeNode, pid PID) {
+func (p *ProcessTreeView) addNode(pm *ProcessManager, target *tview.TreeNode, pid proc.PID) {
 	processes, err := pm.GetProcesses()
 	if err != nil {
 		return
 	}
 
-	proc, ok := processes[pid]
+	pro, ok := processes[pid]
 	if !ok {
 		return
 	}
 
-	for _, p := range proc.Child {
-		node := tview.NewTreeNode(fmt.Sprintf("PID: %s CMD: %s", p, pm.procDs.GetCommand(p))).
-			SetReference(p)
+	for _, child := range pro.Child {
+		node := tview.NewTreeNode(fmt.Sprintf("[%s] %s", child, proc.GetCommand(child))).
+			SetReference(child)
 
-		p, ok := processes[p]
+		childProcess, ok := processes[child]
 		node.SetSelectable(ok)
-		if len(p.Child) > 0 {
+		if len(childProcess.Child) > 0 {
 			node.SetColor(tcell.ColorGreen)
 		}
 		target.AddChild(node)

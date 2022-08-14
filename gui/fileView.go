@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"github.com/dixler/pst/gui/proc"
 	"github.com/rivo/tview"
 )
 
@@ -18,10 +19,10 @@ func NewProcessFileView() *ProcessFileView {
 	return p
 }
 
-func (p *ProcessFileView) UpdateViewWithPid(g *Gui, pid PID) {
+func (p *ProcessFileView) UpdateViewWithPid(g *Gui, pid proc.PID) {
 	text := ""
 	if pid != "0" {
-		info, err := g.ProcessManager.OpenFiles(pid)
+		info, err := proc.OpenFiles(pid)
 		if err != nil {
 			text = err.Error()
 		} else {

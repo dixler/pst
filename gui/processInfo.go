@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dixler/pst/gui/proc"
 	"github.com/rivo/tview"
 )
 
@@ -20,10 +21,10 @@ func NewProcessInfoView() *ProcessInfoView {
 	return p
 }
 
-func (p *ProcessInfoView) UpdateInfoWithPid(g *Gui, pid PID) {
+func (p *ProcessInfoView) UpdateInfoWithPid(g *Gui, pid proc.PID) {
 	text := ""
 	if pid != "0" {
-		info, err := g.ProcessManager.Info(pid)
+		info, err := proc.Info(pid)
 		if err != nil {
 			text = err.Error()
 		} else {

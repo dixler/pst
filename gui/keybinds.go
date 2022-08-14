@@ -3,6 +3,7 @@ package gui
 import (
 	"time"
 
+	"github.com/dixler/pst/gui/proc"
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 )
@@ -45,9 +46,9 @@ func (g *Gui) ProcessManagerKeybinds() {
 	}).SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Rune() {
 		case 'K':
-			if g.ProcessManager.Selected() != nil {
+			if p := g.ProcessManager.Selected(); p != nil {
 				g.Confirm("Do you want to kill this process?", "kill", g.ProcessManager, func() {
-					g.ProcessManager.Kill()
+					proc.Kill(p.Pid)
 					//g.ProcessManager.UpdateView()
 				})
 			}
@@ -62,9 +63,9 @@ func (g *Gui) ProcessManagerKeybinds() {
 			return
 		}
 
-		proc := g.ProcessManager.Selected()
+		p := g.ProcessManager.Selected()
 
-		g.UpdateViews(proc.Pid)
+		g.UpdateViews(p.Pid)
 	})
 }
 
@@ -83,7 +84,7 @@ func (g *Gui) FilterInputKeybinds() {
 
 	g.FilterInput.SetChangedFunc(func(text string) {
 		g.ProcessManager.FilterWord = text
-		//g.ProcessManager.UpdateView()
+		g.ProcessManager.UpdateView()
 	})
 }
 
@@ -98,11 +99,11 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 		case 'K':
 			if ref := node.GetReference(); ref != nil {
 				g.Confirm("Do you want to kill this process?", "kill", g.ProcessTreeView, func() {
-					g.ProcessManager.KillWithPid(ref.(PID))
+					proc.Kill(ref.(proc.PID))
 					// wait a little to finish process killing
 					time.Sleep(1 * time.Millisecond)
-					proc := g.ProcessManager.Selected()
-					g.ProcessTreeView.UpdateTree(g, proc.Pid)
+					p := g.ProcessManager.Selected()
+					g.ProcessTreeView.UpdateTree(g, p.Pid)
 				})
 			}
 		case 'l':
@@ -122,7 +123,7 @@ func (g *Gui) ProcessTreeViewKeybinds() {
 		if ref == nil {
 			return
 		}
-		pid := ref.(PID)
+		pid := ref.(proc.PID)
 
 		g.UpdateViews(pid)
 	})

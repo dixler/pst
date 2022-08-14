@@ -2,11 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io/ioutil"
-	"log"
-	"os"
-	"path/filepath"
 	"runtime"
 	"runtime/debug"
 
@@ -21,26 +17,7 @@ var (
 func run() int {
 	flag.Parse()
 
-	if *enableLog {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
-		}
-
-		logWriter, err := os.OpenFile(filepath.Join(home, "pst.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
-		}
-
-		log.SetOutput(logWriter)
-		log.SetFlags(log.Lshortfile)
-	} else {
-		log.SetOutput(ioutil.Discard)
-	}
-
-	if err := gui.New(*filterWord).Run(); err != nil {
+	if err := gui.New().Run(); err != nil {
 		return 1
 	}
 

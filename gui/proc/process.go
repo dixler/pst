@@ -1,7 +1,8 @@
-package gui
+package proc
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,13 +19,8 @@ type Process struct {
 }
 
 type ProcDataSource interface {
-	GetProcesses(filters ...string) []Process
-	GetProcess(pid PID) Process
-
-	// procfs based
-	GetChildren(pid PID) []PID
-	GetCommand(pid PID) string
-	GetEnviron(pid PID) []string
+	GetProcesses(filters ...string) map[PID]Process
+	GetProcess(pid PID) *Process
 
 	// ebpf based
 	GetExecTrace(pid PID) []ExecData
@@ -42,18 +38,18 @@ type procDataSource struct {
 	procCache     map[PID]ExecData
 }
 
-func NewProcDataSource() (procDataSource, error) {
+func NewProcDataSource() (*procDataSource, error) {
 	execDs, err := NewExecDataSource()
 	if err != nil {
-		return procDataSource{}, err
+		return &procDataSource{}, err
 	}
 	openDs, err := NewOpenDataSource()
 	if err != nil {
-		return procDataSource{}, err
+		return &procDataSource{}, err
 	}
 	chdirDs, err := NewChdirDataSource()
 	if err != nil {
-		return procDataSource{}, err
+		return &procDataSource{}, err
 	}
 
 	openDsPID, openDsData, err := openDs.GetStream()
@@ -85,7 +81,7 @@ func NewProcDataSource() (procDataSource, error) {
 
 	pds.bootstrapProcCache()
 
-	return pds, nil
+	return &pds, nil
 }
 
 func (pds *procDataSource) GetProcess(pid PID) *Process {
@@ -94,7 +90,7 @@ func (pds *procDataSource) GetProcess(pid PID) *Process {
 	pds.procCacheLock.RUnlock()
 	if !ok {
 		p = ExecData{
-			Command: pds.GetCommand(pid),
+			Command: GetCommand(pid),
 		}
 		pds.procCacheLock.Lock()
 		pds.procCache[pid] = p
@@ -103,7 +99,7 @@ func (pds *procDataSource) GetProcess(pid PID) *Process {
 	return &Process{
 		Pid:   pid,
 		Cmd:   p.Command,
-		Child: pds.GetChildren(pid),
+		Child: GetChildren(pid),
 	}
 }
 
@@ -120,7 +116,7 @@ func (pds *procDataSource) bootstrapProcCache() {
 		pid := PID(candidate)
 		pds.procCacheLock.Lock()
 		pds.procCache[pid] = ExecData{
-			Command: pds.GetCommand(pid),
+			Command: GetCommand(pid),
 		}
 		pds.procCacheLock.Unlock()
 	}
@@ -142,23 +138,24 @@ func (pds *procDataSource) bootstrapProcCache() {
 }
 
 func (pds *procDataSource) GetProcesses(filters ...string) map[PID]Process {
-	results := make(map[PID]Process)
 	pds.procCacheLock.RLock()
 	defer pds.procCacheLock.RUnlock()
-	for pid, proc := range pds.procCache {
-		if !strings.Contains(proc.Command, filters[0]) {
+
+	results := make(map[PID]Process)
+	for pid, p := range pds.procCache {
+		if !strings.Contains(p.Command, filters[0]) {
 			continue
 		}
 		results[pid] = Process{
 			Pid:   pid,
-			Cmd:   proc.Command,
-			Child: pds.GetChildren(pid),
+			Cmd:   p.Command,
+			Child: GetChildren(pid),
 		}
 	}
 	return results
 }
 
-func (pds *procDataSource) GetChildren(pid PID) []PID {
+func GetChildren(pid PID) []PID {
 	prefix := path.Join("/proc", pid.String(), "task")
 	files, err := filepath.Glob(path.Join(prefix, "*", "children"))
 
@@ -187,26 +184,6 @@ func (pds *procDataSource) GetChildren(pid PID) []PID {
 	return pids
 }
 
-func readProcPathBytes(pid PID, p string) ([]byte, error) {
-	return ioutil.ReadFile(path.Join("/proc", pid.String(), p))
-}
-
-func readProcPath(pid PID, p string) (string, error) {
-	b, err := ioutil.ReadFile(path.Join("/proc", pid.String(), p))
-	if err != nil {
-		return "", err
-	}
-	return string(b), err
-}
-
-func (pds *procDataSource) GetCommand(pid PID) string {
-	str, _ := readProcPath(pid, "comm")
-	return str //strings.ReplaceAll(str, "\x00", " ")
-}
-
-func (pds *procDataSource) GetEnviron(pid PID) []string {
-	panic("unimplemented")
-}
 func (pds *procDataSource) GetExecTrace(pid PID) []ExecData {
 	panic("unimplemented")
 }
@@ -215,4 +192,18 @@ func (pds *procDataSource) GetOpenTrace(pid PID) []OpenData {
 }
 func (pds *procDataSource) GetChdirTrace(pid PID) []ChdirData {
 	panic("unimplemented")
+}
+
+func Kill(pid PID) error {
+	proc, err := os.FindProcess(pid.Int())
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	if err := proc.Kill(); err != nil {
+		log.Println(err)
+		return err
+	}
+	return nil
 }

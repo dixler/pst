@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/dixler/pst/gui/proc"
 	"github.com/rivo/tview"
 )
 
@@ -21,12 +22,12 @@ type Gui struct {
 	ProcessManager  *ProcessManager
 	ProcessInfoView *ProcessInfoView
 	ProcessTreeView *ProcessTreeView
-	ProcessEnvView  *ProcessEnvView
+	ProcessEnvView  *EnvView
 	ProcessFileView *ProcessFileView
 	NaviView        *NaviView
 	App             *tview.Application
 	Pages           *tview.Pages
-	updateChannel   chan PID
+	updateChannel   chan proc.PID
 	Panels
 }
 
@@ -36,17 +37,17 @@ type Panels struct {
 	Kinds   []int
 }
 
-func New(word string) *Gui {
+func New() *Gui {
 	filterInput := tview.NewInputField().SetLabel("cmd name:")
-	filterInput.SetText(word)
+	filterInput.SetText("")
 	processManager := NewProcessManager()
-	processManager.FilterWord = word
+	processManager.FilterWord = ""
 	processInfoView := NewProcessInfoView()
 	processTreeView := NewProcessTreeView(processManager)
-	processEnvView := NewProcessEnvView()
+	processEnvView := NewEnvView()
 	processFileView := NewProcessFileView()
 	naviView := NewNaviView()
-	updateChannel := make(chan PID, 50)
+	updateChannel := make(chan proc.PID, 50)
 
 	g := &Gui{
 		FilterInput:     filterInput,
@@ -60,7 +61,7 @@ func New(word string) *Gui {
 		updateChannel:   updateChannel,
 	}
 
-	redraw := func(pid PID) {
+	redraw := func(pid proc.PID) {
 		g.ProcessInfoView.UpdateInfoWithPid(g, pid)
 		g.ProcessTreeView.UpdateTree(g, pid)
 		g.ProcessEnvView.UpdateViewWithPid(g, pid)
@@ -71,8 +72,8 @@ func New(word string) *Gui {
 	go func() {
 		duration := 250 * time.Millisecond
 		t := time.NewTicker(duration)
-		var curPid *PID = nil
-		var newPid *PID = nil
+		var curPid *proc.PID = nil
+		var newPid *proc.PID = nil
 		for {
 			select {
 			case <-t.C:
@@ -146,7 +147,7 @@ func (g *Gui) SwitchPanel(p tview.Primitive) *tview.Application {
 	return g.App.SetFocus(p)
 }
 
-func (g *Gui) UpdateViews(pid PID) {
+func (g *Gui) UpdateViews(pid proc.PID) {
 	g.updateChannel <- pid
 
 }
@@ -162,8 +163,8 @@ func (g *Gui) Run() error {
 	}
 	// when start app, set select index 0
 	g.ProcessManager.Select(1, 0)
-	proc := g.ProcessManager.Selected()
-	g.UpdateViews(proc.Pid)
+	p := g.ProcessManager.Selected()
+	g.UpdateViews(p.Pid)
 
 	infoGrid := tview.NewGrid().SetRows(0, 0, 0, 0).
 		SetColumns(30, 0).
